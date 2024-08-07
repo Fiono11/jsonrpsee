@@ -178,7 +178,7 @@ pub(crate) fn init_logger() {
 
 pub(crate) fn deser_call<T: DeserializeOwned + fmt::Debug + Clone>(raw: String) -> T {
 	let rp: Response<T> = serde_json::from_str(&raw).unwrap();
-	ResponseSuccess::try_from(rp).expect("Successful call").result
+	ResponseSuccess::try_from(rp).expect("Successful call").0
 }
 
 /// Applications can/should provide their own error.

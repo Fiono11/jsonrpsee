@@ -44,15 +44,15 @@ where
 
 	fn call(&self, mut req: Request<'a>) -> Self::Future {
 		// Example how to modify the params in the call.
-		if req.method == "say_hello" {
+		if req.action == "say_hello" {
 			// It's a bit awkward to create new params in the request
 			// but this shows how to do it.
 			let raw_value = serde_json::value::to_raw_value("myparams").unwrap();
 			req.params = Some(StdCow::Owned(raw_value));
 		}
 		// Re-direct all calls that isn't `say_hello` to `say_goodbye`
-		else if req.method != "say_hello" {
-			req.method = "say_goodbye".into();
+		else if req.action != "say_hello" {
+			req.action = "say_goodbye".into();
 		}
 
 		self.0.call(req)

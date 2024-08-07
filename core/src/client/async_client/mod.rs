@@ -745,8 +745,8 @@ fn handle_backend_messages<R: TransportReceiverT>(
 
 					for r in raw_responses {
 						if let Ok(response) = serde_json::from_str::<Response<_>>(r.get()) {
-							let id = response.id.try_parse_inner_as_number()?;
-							let result = ResponseSuccess::try_from(response).map(|s| s.result);
+							let id = 0;
+							let result = ResponseSuccess::try_from(response).map(|s| s.0);
 							batch.push(InnerBatchResponse { id, result });
 
 							let r = range.get_or_insert(id..id);

@@ -89,7 +89,7 @@ where
 
 			if *lock >= 10 {
 				let _ = state.try_send(());
-				MethodResponse::error(req.id, ErrorObject::borrowed(-32000, "RPC rate limit", None))
+				MethodResponse::error(jsonrpsee::types::Id::Null, ErrorObject::borrowed(-32000, "RPC rate limit", None))
 			} else {
 				let rp = service.call(req).await;
 				*lock += 1;

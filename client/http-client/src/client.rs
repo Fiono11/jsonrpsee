@@ -41,7 +41,7 @@ use jsonrpsee_core::client::{
 use jsonrpsee_core::params::BatchRequestBuilder;
 use jsonrpsee_core::traits::ToRpcParams;
 use jsonrpsee_core::{BoxError, JsonRawValue, TEN_MB_SIZE_BYTES};
-use jsonrpsee_types::{ErrorObject, InvalidRequestId, ResponseSuccess, TwoPointZero};
+use jsonrpsee_types::{ErrorObject, Id, InvalidRequestId, ResponseSuccess, TwoPointZero};
 use serde::de::DeserializeOwned;
 use tower::layer::util::Identity;
 use tower::{Layer, Service};
@@ -343,10 +343,10 @@ where
 		R: DeserializeOwned,
 		Params: ToRpcParams + Send,
 	{
-		let id = self.id_manager.next_request_id();
+		let id = 0;
 		let params = params.to_rpc_params()?;
 
-		let request = RequestSer::borrowed(&id, &method, params.as_deref());
+		let request = RequestSer::borrowed(&Id::Null, &method, params.as_deref());
 		let raw = serde_json::to_string(&request).map_err(Error::ParseError)?;
 
 		let fut = self.transport.send_and_read_body(raw);
@@ -364,12 +364,12 @@ where
 		// a better error message if `R` couldn't be decoded.
 		let response = ResponseSuccess::try_from(serde_json::from_slice::<Response<&JsonRawValue>>(&body)?)?;
 
-		let result = serde_json::from_str(response.result.get()).map_err(Error::ParseError)?;
+		let result = serde_json::from_str(response.0.get()).map_err(Error::ParseError)?;
 
-		if response.id == id {
+		if 0 == id {
 			Ok(result)
 		} else {
-			Err(InvalidRequestId::NotPendingRequest(response.id.to_string()).into())
+			Err(InvalidRequestId::NotPendingRequest(0.to_string()).into())
 		}
 	}
 
@@ -412,11 +412,11 @@ where
 		}
 
 		for rp in json_rps {
-			let id = rp.id.try_parse_inner_as_number()?;
+			let id: u64 = 0;
 
 			let res = match ResponseSuccess::try_from(rp) {
 				Ok(r) => {
-					let result = serde_json::from_str(r.result.get())?;
+					let result = serde_json::from_str(r.0.get())?;
 					successful_calls += 1;
 					Ok(result)
 				}

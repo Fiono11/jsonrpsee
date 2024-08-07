@@ -76,7 +76,10 @@ where
 	fn call(&self, req: Request<'a>) -> Self::Future {
 		if req.method_name() == "trusted_call" {
 			let Some(Ok(_)) = self.headers.get(AUTHORIZATION).map(|auth| auth.to_str()) else {
-				let rp = MethodResponse::error(req.id, ErrorObject::borrowed(-32000, "Authorization failed", None));
+				let rp = MethodResponse::error(
+					jsonrpsee::types::Id::Null,
+					ErrorObject::borrowed(-32000, "Authorization failed", None),
+				);
 				return ResponseFuture::ready(rp);
 			};
 

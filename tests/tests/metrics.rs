@@ -73,8 +73,8 @@ where
 		let service = self.service.clone();
 
 		async move {
-			let name = request.method.to_string();
-			let id = request.id.clone();
+			let name = request.action.to_string();
+			let id = jsonrpsee::types::Id::Null;
 
 			{
 				let mut n = counter.lock().unwrap();
@@ -89,7 +89,7 @@ where
 				let mut n = counter.lock().unwrap();
 				n.requests.1 += 1;
 				if rp.is_success() {
-					n.calls.get_mut(&name).unwrap().1.push(id.into_owned());
+					n.calls.get_mut(&name).unwrap().1.push(jsonrpsee::types::Id::Null.into_owned());
 				}
 			}
 

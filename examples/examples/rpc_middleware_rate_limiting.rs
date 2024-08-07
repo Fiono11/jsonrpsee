@@ -121,7 +121,10 @@ where
 		};
 
 		if is_denied {
-			ResponseFuture::ready(MethodResponse::error(req.id, ErrorObject::borrowed(-32000, "RPC rate limit", None)))
+			ResponseFuture::ready(MethodResponse::error(
+				jsonrpsee::types::Id::Null,
+				ErrorObject::borrowed(-32000, "RPC rate limit", None),
+			))
 		} else {
 			ResponseFuture::future(self.service.call(req))
 		}

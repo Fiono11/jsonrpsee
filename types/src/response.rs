@@ -39,23 +39,23 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// JSON-RPC response object as defined in the [spec](https://www.jsonrpc.org/specification#response_object).
 pub struct Response<'a, T: Clone> {
-	/// JSON-RPC version.
-	pub jsonrpc: Option<TwoPointZero>,
+	// JSON-RPC version.
+	//pub jsonrpc: Option<TwoPointZero>,
 	/// Payload which can be result or error.
 	pub payload: ResponsePayload<'a, T>,
-	/// Request ID
-	pub id: Id<'a>,
+	// Request ID
+	//pub id: Id<'a>,
 }
 
 impl<'a, T: Clone> Response<'a, T> {
 	/// Create a new [`Response`].
 	pub fn new(payload: ResponsePayload<'a, T>, id: Id<'a>) -> Response<'a, T> {
-		Response { jsonrpc: Some(TwoPointZero), payload, id }
+		Response { payload }
 	}
 
 	/// Create an owned [`Response`].
 	pub fn into_owned(self) -> Response<'static, T> {
-		Response { jsonrpc: self.jsonrpc, payload: self.payload.into_owned(), id: self.id.into_owned() }
+		Response { payload: self.payload.into_owned() }
 	}
 }
 
@@ -80,22 +80,15 @@ where
 /// JSON-RPC response object as defined in the [spec](https://www.jsonrpc.org/specification#response_object)
 /// but differs from [`Response`] as it only represent a successful response.
 #[derive(Debug)]
-pub struct Success<'a, T> {
-	/// JSON-RPC version.
-	pub jsonrpc: Option<TwoPointZero>,
-	/// Result.
-	pub result: T,
-	/// Request ID
-	pub id: Id<'a>,
-}
+pub struct Success<T>(pub T);
 
-impl<'a, T: Clone> TryFrom<Response<'a, T>> for Success<'a, T> {
+impl<'a, T: Clone> TryFrom<Response<'a, T>> for Success<T> {
 	type Error = ErrorObjectOwned;
 
 	fn try_from(rp: Response<'a, T>) -> Result<Self, Self::Error> {
 		match rp.payload {
 			ResponsePayload::Error(e) => Err(e.into_owned()),
-			ResponsePayload::Success(r) => Ok(Success { jsonrpc: rp.jsonrpc, result: r.into_owned(), id: rp.id }),
+			ResponsePayload::Success(r) => Ok(Success(r.into_owned())),
 		}
 	}
 }
@@ -293,14 +286,10 @@ where
 					(_, Some(_), Some(_)) => {
 						return Err(serde::de::Error::duplicate_field("result and error are mutually exclusive"))
 					}
-					(Some(jsonrpc), Some(result), None) => {
-						Response { jsonrpc, payload: ResponsePayload::Success(result), id }
-					}
-					(Some(jsonrpc), None, Some(err)) => Response { jsonrpc, payload: ResponsePayload::Error(err), id },
-					(None, Some(result), _) => {
-						Response { jsonrpc: None, payload: ResponsePayload::Success(result), id }
-					}
-					(None, _, Some(err)) => Response { jsonrpc: None, payload: ResponsePayload::Error(err), id },
+					(Some(jsonrpc), Some(result), None) => Response { payload: ResponsePayload::Success(result) },
+					(Some(jsonrpc), None, Some(err)) => Response { payload: ResponsePayload::Error(err) },
+					(None, Some(result), _) => Response { payload: ResponsePayload::Success(result) },
+					(None, _, Some(err)) => Response { payload: ResponsePayload::Error(err) },
 					(_, None, None) => return Err(serde::de::Error::missing_field("result/error")),
 				};
 
@@ -321,20 +310,18 @@ where
 	where
 		S: Serializer,
 	{
-		let mut s = serializer.serialize_struct("Response", 3)?;
-
-		if let Some(field) = &self.jsonrpc {
-			s.serialize_field("jsonrpc", field)?;
-		}
-
-		s.serialize_field("id", &self.id)?;
+		//let mut s = serializer.serialize_struct("Response", 3)?;
 
 		match &self.payload {
-			ResponsePayload::Error(err) => s.serialize_field("error", err)?,
-			ResponsePayload::Success(r) => s.serialize_field("result", r)?,
-		};
+			ResponsePayload::Error(err) => serializer.serialize_str(err.message()),
+			ResponsePayload::Success(r) => {
+				// Convert the success payload to a JSON string
+				let json_str = serde_json::to_string(&r).unwrap();
+				serializer.serialize_str(format!("{{ {} }}", &json_str).as_str())
+			}
+		}
 
-		s.end()
+		//s.end()
 	}
 }
 
@@ -345,12 +332,7 @@ mod tests {
 
 	#[test]
 	fn serialize_call_ok_response() {
-		let ser = serde_json::to_string(&Response {
-			jsonrpc: Some(TwoPointZero),
-			payload: ResponsePayload::success("ok"),
-			id: Id::Number(1),
-		})
-		.unwrap();
+		let ser = serde_json::to_string(&Response { payload: ResponsePayload::success("ok") }).unwrap();
 		let exp = r#"{"jsonrpc":"2.0","id":1,"result":"ok"}"#;
 		assert_eq!(ser, exp);
 	}
@@ -358,9 +340,7 @@ mod tests {
 	#[test]
 	fn serialize_call_err_response() {
 		let ser = serde_json::to_string(&Response {
-			jsonrpc: Some(TwoPointZero),
 			payload: ResponsePayload::<()>::error(ErrorObjectOwned::owned(1, "lo", None::<()>)),
-			id: Id::Number(1),
 		})
 		.unwrap();
 		let exp = r#"{"jsonrpc":"2.0","id":1,"error":{"code":1,"message":"lo"}}"#;
@@ -369,56 +349,38 @@ mod tests {
 
 	#[test]
 	fn serialize_call_response_missing_version_field() {
-		let ser = serde_json::to_string(&Response {
-			jsonrpc: None,
-			payload: ResponsePayload::success("ok"),
-			id: Id::Number(1),
-		})
-		.unwrap();
+		let ser = serde_json::to_string(&Response { payload: ResponsePayload::success("ok") }).unwrap();
 		let exp = r#"{"id":1,"result":"ok"}"#;
 		assert_eq!(ser, exp);
 	}
 
 	#[test]
 	fn deserialize_success_call() {
-		let exp =
-			Response { jsonrpc: Some(TwoPointZero), payload: ResponsePayload::success(99_u64), id: Id::Number(11) };
+		let exp = Response { payload: ResponsePayload::success(99_u64) };
 		let dsr: Response<u64> = serde_json::from_str(r#"{"jsonrpc":"2.0", "result":99, "id":11}"#).unwrap();
-		assert_eq!(dsr.jsonrpc, exp.jsonrpc);
 		assert_eq!(dsr.payload, exp.payload);
-		assert_eq!(dsr.id, exp.id);
 	}
 
 	#[test]
 	fn deserialize_err_call() {
-		let exp = Response {
-			jsonrpc: Some(TwoPointZero),
-			payload: ResponsePayload::error(ErrorObjectOwned::owned(1, "lo", None::<()>)),
-			id: Id::Number(11),
-		};
+		let exp = Response { payload: ResponsePayload::error(ErrorObjectOwned::owned(1, "lo", None::<()>)) };
 		let dsr: Response<()> =
 			serde_json::from_str(r#"{"jsonrpc":"2.0","error":{"code":1,"message":"lo"},"id":11}"#).unwrap();
-		assert_eq!(dsr.jsonrpc, exp.jsonrpc);
 		assert_eq!(dsr.payload, exp.payload);
-		assert_eq!(dsr.id, exp.id);
 	}
 
 	#[test]
 	fn deserialize_call_missing_version_field() {
-		let exp = Response { jsonrpc: None, payload: ResponsePayload::success(99_u64), id: Id::Number(11) };
+		let exp = Response { payload: ResponsePayload::success(99_u64) };
 		let dsr: Response<u64> = serde_json::from_str(r#"{"jsonrpc":null, "result":99, "id":11}"#).unwrap();
-		assert_eq!(dsr.jsonrpc, exp.jsonrpc);
 		assert_eq!(dsr.payload, exp.payload);
-		assert_eq!(dsr.id, exp.id);
 	}
 
 	#[test]
 	fn deserialize_with_unknown_field() {
-		let exp = Response { jsonrpc: None, payload: ResponsePayload::success(99_u64), id: Id::Number(11) };
+		let exp = Response { payload: ResponsePayload::success(99_u64) };
 		let dsr: Response<u64> =
 			serde_json::from_str(r#"{"jsonrpc":null, "result":99, "id":11, "unknown":11}"#).unwrap();
-		assert_eq!(dsr.jsonrpc, exp.jsonrpc);
 		assert_eq!(dsr.payload, exp.payload);
-		assert_eq!(dsr.id, exp.id);
 	}
 }

@@ -311,7 +311,7 @@ impl Methods {
 		let (rp, _) = self.inner_call(req, 1, mock_subscription_permit()).await;
 
 		let rp = serde_json::from_str::<Response<T>>(&rp)?;
-		ResponseSuccess::try_from(rp).map(|s| s.result).map_err(|e| MethodsError::JsonRpc(e.into_owned()))
+		ResponseSuccess::try_from(rp).map(|s| s.0).map_err(|e| MethodsError::JsonRpc(e.into_owned()))
 	}
 
 	/// Make a request (JSON-RPC method call or subscription) by using raw JSON.
@@ -366,13 +366,14 @@ impl Methods {
 		subscription_permit: SubscriptionPermit,
 	) -> RawRpcResponse {
 		let (tx, mut rx) = mpsc::channel(buf_size);
-		let Request { id, method, params, mut extensions, .. } = req;
+		let Request { action, params, mut extensions, .. } = req;
 		let params = Params::new(params.as_ref().map(|params| params.as_ref().get()));
 		let max_response_size = usize::MAX;
 		let conn_id = ConnectionId(0);
 		extensions.insert(conn_id);
+		let id = Id::Null;
 
-		let response = match self.method(&method) {
+		let response = match self.method(&action) {
 			None => MethodResponse::error(id, ErrorObject::from(ErrorCode::MethodNotFound)),
 			Some(MethodCallback::Sync(cb)) => (cb)(id, params, max_response_size, extensions),
 			Some(MethodCallback::Async(cb)) => {
@@ -401,7 +402,7 @@ impl Methods {
 			n.notify(is_success);
 		}
 
-		tracing::trace!(target: LOG_TARGET, "[Methods::inner_call] Method: {}, response: {}", method, rp);
+		tracing::trace!(target: LOG_TARGET, "[Methods::inner_call] Method: {}, response: {}", action, rp);
 
 		(rp, rx)
 	}
@@ -460,7 +461,7 @@ impl Methods {
 		// TODO: hack around the lifetime on the `SubscriptionId` by deserialize first to serde_json::Value.
 		let as_success: ResponseSuccess<serde_json::Value> = serde_json::from_str::<Response<_>>(&resp)?.try_into()?;
 
-		let sub_id = as_success.result.try_into().map_err(|_| MethodsError::InvalidSubscriptionId(resp.clone()))?;
+		let sub_id = as_success.0.try_into().map_err(|_| MethodsError::InvalidSubscriptionId(resp.clone()))?;
 
 		Ok(Subscription { sub_id, rx })
 	}

@@ -37,7 +37,7 @@ use jsonrpsee_core::server::{
 };
 use jsonrpsee_core::traits::IdProvider;
 use jsonrpsee_types::error::{reject_too_many_subscriptions, ErrorCode};
-use jsonrpsee_types::{ErrorObject, Request};
+use jsonrpsee_types::{ErrorObject, Id, Request};
 
 /// JSON-RPC service middleware.
 #[derive(Clone, Debug)]
@@ -83,8 +83,9 @@ impl<'a> RpcServiceT<'a> for RpcService {
 		let conn_id = self.conn_id;
 		let max_response_body_size = self.max_response_body_size;
 
-		let Request { id, method, params, extensions, .. } = req;
+		let Request { action: method, params, extensions, .. } = req;
 		let params = jsonrpsee_types::Params::new(params.as_ref().map(|p| serde_json::value::RawValue::get(p)));
+		let id = Id::Null;
 
 		match self.methods.method_with_name(&method) {
 			None => {

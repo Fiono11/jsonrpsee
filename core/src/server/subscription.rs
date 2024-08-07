@@ -189,7 +189,7 @@ pub(crate) enum SubNotifResultOrError {
 impl SubNotifResultOrError {
 	pub(crate) const fn as_str(&self) -> &str {
 		match self {
-			Self::Result => "result",
+			Self::Result => "",
 			Self::Error => "error",
 		}
 	}

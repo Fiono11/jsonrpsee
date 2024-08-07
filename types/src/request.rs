@@ -40,14 +40,14 @@ use serde_json::value::RawValue;
 /// JSON-RPC request object as defined in the [spec](https://www.jsonrpc.org/specification#request-object).
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Request<'a> {
-	/// JSON-RPC version.
-	pub jsonrpc: TwoPointZero,
-	/// Request ID
-	#[serde(borrow)]
-	pub id: Id<'a>,
+	// JSON-RPC version.
+	//pub jsonrpc: Option<TwoPointZero>,
+	// Request ID
+	//#[serde(borrow)]
+	//pub id: Option<Id<'a>>,
 	/// Name of the method to be invoked.
 	#[serde(borrow)]
-	pub method: Cow<'a, str>,
+	pub action: Cow<'a, str>,
 	/// Parameter values of the request.
 	#[serde(borrow)]
 	pub params: Option<Cow<'a, RawValue>>,
@@ -59,17 +59,24 @@ pub struct Request<'a> {
 impl<'a> Request<'a> {
 	/// Create a new [`Request`].
 	pub fn new(method: Cow<'a, str>, params: Option<&'a RawValue>, id: Id<'a>) -> Self {
-		Self { jsonrpc: TwoPointZero, id, method, params: params.map(Cow::Borrowed), extensions: Extensions::new() }
+		Self {
+			//jsonrpc: Some(TwoPointZero),
+			//id: Some(id),
+			action: method,
+			params: params.map(Cow::Borrowed),
+			extensions: Extensions::new(),
+		}
 	}
 
 	/// Get the ID of the request.
 	pub fn id(&self) -> Id<'a> {
-		self.id.clone()
+		//self.id.clone().unwrap()
+		Id::Null
 	}
 
 	/// Get the method name of the request.
 	pub fn method_name(&self) -> &str {
-		&self.method
+		&self.action
 	}
 
 	/// Get the params of the request.
@@ -179,9 +186,9 @@ mod test {
 	use serde_json::value::RawValue;
 
 	fn assert_request<'a>(request: Request<'a>, id: Id<'a>, method: &str, params: Option<&str>) {
-		assert_eq!(request.jsonrpc, TwoPointZero);
-		assert_eq!(request.id, id);
-		assert_eq!(request.method, method);
+		//assert_eq!(request.jsonrpc.unwrap(), TwoPointZero);
+		//assert_eq!(request.id.unwrap(), id);
+		assert_eq!(request.action, method);
 		assert_eq!(request.params.as_ref().map(|p| RawValue::get(p)), params);
 	}
 

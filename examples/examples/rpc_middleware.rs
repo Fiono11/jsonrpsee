@@ -116,7 +116,7 @@ where
 	type Future = S::Future;
 
 	fn call(&self, req: Request<'a>) -> Self::Future {
-		println!("logger middleware: method `{}`", req.method);
+		println!("logger middleware: method `{}`", req.action);
 		self.0.call(req)
 	}
 }
